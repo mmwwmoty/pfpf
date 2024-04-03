@@ -1,4 +1,3 @@
--*- coding: utf-8 -*-
 import asyncio
 import aiosqlite
 from aiogram import Bot, Dispatcher, types
