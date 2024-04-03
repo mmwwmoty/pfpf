@@ -1,3 +1,4 @@
+import aiogram
 import asyncio
 import aiosqlite
 from aiogram import Bot, Dispatcher, types
@@ -100,7 +101,7 @@ async def process_anonymous_message(message: types.Message, state: FSMContext):
         markup = InlineKeyboardMarkup()
         cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
         markup.add(cancel_button)
-        await message.answer("🚀 Здесь можно отправить <b>анонимное сообщение</b> человеку, который опубликовал эту ссылку\n\n🖊 <b>Напишите сюда всё, что хотите ему передать</b>, и через несколько секунд он получит ваше сообщение, но не будет знать от кого\n\nОтправить можно фото, видео, 💬 текст, 🔊 голосовые, 📷видеосообщения (кружки), а также ✨ стикеры", parse_mode="HTML", reply_markup=markup)
+        await message.answer("🚀 Здесь можно отправить <b>анонимное сообщение</b> человеку, который опубликовал эту ссылку\n\n🖊 <b>Напишите сюда всё, что хотите ему передать</b>, и через несколько секунд он получит ваше сообщение, но не будет знать от кого\\n\\nОтправить можно фото, видео, 💬 текст, 🔊 голосовые, 📷видеосообщения (кружки), а также ✨ стикеры", parse_mode="HTML", reply_markup=markup)
         return
     async with state.proxy() as data:
         recipient_id = data['recipient_id']
@@ -108,14 +109,18 @@ async def process_anonymous_message(message: types.Message, state: FSMContext):
         data['sender_id'] = message.from_user.id  # Сохраняем sender_id в состоянии
     await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, message.text))
     
-    await message.answer(f"Ваше анонимное сообщение было отправлено.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📨 Написать ещё", callback_data="send_again")]]))
+    await message.answer(f"Сообщение отправлено, ожидайте ответ!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📨 Написать ещё", callback_data="send_again")]]))
     
     # Создаем кнопку "Ответить" и отправляем сообщение получателю
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("✏ Ответить", callback_data="reply")
     reply_markup.add(reply_button)
-    await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>",parse_mode="HTML", reply_markup=reply_markup)
+    try:
+        await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>",parse_mode="HTML", reply_markup=reply_markup)
+    except aiogram.utils.exceptions.ChatNotFound:
+        print("Chat not found, but continuing with other functions.")
     await state.finish()
+
 
 @dp.callback_query_handler(lambda c: c.data == 'send_again', state='*')
 async def process_callback_send_again(callback_query: types.CallbackQuery, state: FSMContext):
@@ -207,5 +212,5 @@ if __name__ == '__main__':
     from aiogram import executor
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-    print("Бот включен!")
+    print("GO!")
     executor.start_polling(dp, skip_updates=True)
