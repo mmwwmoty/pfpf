@@ -1,7 +1,7 @@
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from main import dp, bot, Form, execute_query
+from main import dp, bot, Form, get_connection  # Импортируем функцию connect_to_database из main.py
 
 @dp.callback_query_handler(state='*')
 async def process_callback_reply(callback_query: types.CallbackQuery, state: FSMContext):
@@ -18,7 +18,11 @@ async def process_anonymous_photo(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         recipient_id = data['recipient_id']
     photo_id = message.photo[-1].file_id  # Получаем идентификатор файла фотографии
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, photo_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, photo_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
     
     # Создаем кнопку "Ответить"
     reply_markup = InlineKeyboardMarkup()
@@ -41,7 +45,11 @@ async def process_anonymous_reply_photo(message: types.Message, state: FSMContex
     async with state.proxy() as data:
         sender_id = data.get('sender_id')  # Получаем sender_id из данных
     photo_id = message.photo[-1].file_id  # Получаем идентификатор файла фотографии
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, photo_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, photo_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
     
     # Создаем кнопку "Написать еще" и отправляем сообщение отправителю
     reply_markup = InlineKeyboardMarkup()
@@ -63,7 +71,11 @@ async def process_anonymous_video(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         recipient_id = data['recipient_id']
     video_id = message.video.file_id  # Получаем идентификатор файла видео
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, video_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, video_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
     
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("✏ Ответить", callback_data=str(message.from_user.id))
@@ -83,7 +95,11 @@ async def process_anonymous_reply_video(message: types.Message, state: FSMContex
     async with state.proxy() as data:
         sender_id = data.get('sender_id')  # Получаем sender_id из данных
     video_id = message.video.file_id  # Получаем идентификатор файла видео
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, video_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, video_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
     
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("📨 Написать ещё", callback_data="send_again")
@@ -103,7 +119,11 @@ async def process_anonymous_voice(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         recipient_id = data['recipient_id']
     voice_id = message.voice.file_id  # Получаем идентификатор файла голосового сообщения
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, voice_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, voice_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
     
     # Создаем кнопку "Ответить"
     reply_markup = InlineKeyboardMarkup()
@@ -126,7 +146,11 @@ async def process_anonymous_reply_voice(message: types.Message, state: FSMContex
     async with state.proxy() as data:
         sender_id = data.get('sender_id')  # Получаем sender_id из данных
     voice_id = message.voice.file_id  # Получаем идентификатор файла голосового сообщения
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, voice_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, voice_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
     
     # Создаем кнопку "Написать еще" и отправляем сообщение отправителю
     reply_markup = InlineKeyboardMarkup()
@@ -148,7 +172,11 @@ async def process_anonymous_video_note(message: types.Message, state: FSMContext
     async with state.proxy() as data:
         recipient_id = data['recipient_id']
     video_note_id = message.video_note.file_id  # Получаем идентификатор файла видеокружочка
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, video_note_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, video_note_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
 
     # Отправляем видеокружочек получателю
     video_note_message = await bot.send_video_note(chat_id=recipient_id, video_note=video_note_id)
@@ -174,7 +202,11 @@ async def process_anonymous_reply_video_note(message: types.Message, state: FSMC
     async with state.proxy() as data:
         sender_id = data.get('sender_id')  # Получаем sender_id из данных
     video_note_id = message.video_note.file_id  # Получаем идентификатор файла видеокружочка
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, video_note_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, video_note_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
 
     # Создаем кнопку "Написать еще" и отправляем сообщение отправителю
     again_markup = InlineKeyboardMarkup()
@@ -201,7 +233,11 @@ async def process_anonymous_sticker(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         recipient_id = data['recipient_id']
     sticker_id = message.sticker.file_id  # Получаем идентификатор файла стикера
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, sticker_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, sticker_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
     
     # Отправляем стикер получателю
     sticker_message = await bot.send_sticker(chat_id=recipient_id, sticker=message.sticker.file_id)
@@ -227,7 +263,11 @@ async def process_anonymous_reply_sticker(message: types.Message, state: FSMCont
     async with state.proxy() as data:
         sender_id = data.get('sender_id')  # Получаем sender_id из данных
     sticker_id = message.sticker.file_id  # Получаем идентификатор файла стикера
-    await execute_query("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, sticker_id))
+
+    conn = await get_connection()  # Создаем соединение с базой данных
+    async with conn.cursor() as cursor:  # Создаем курсор
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, sticker_id))  # Выполняем SQL-запрос
+    await conn.commit()  # Сохраняем изменения
     
     # Создаем кнопку "Написать еще" и отправляем сообщение отправителю
     again_markup = InlineKeyboardMarkup()
@@ -245,5 +285,5 @@ async def process_anonymous_reply_sticker(message: types.Message, state: FSMCont
     
     # Отправляем сообщение "У тебя новое сообщение!" с кнопкой "Ответить", отвечая на сообщение со стикером
     await bot.send_message(chat_id=sender_id, text="<b>🔔 У тебя новое сообщение!</b>\n\n", reply_markup=reply_markup, reply_to_message_id=sticker_message.message_id, parse_mode="HTML")
-    
+
     await state.finish()
