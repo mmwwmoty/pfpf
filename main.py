@@ -165,7 +165,7 @@ async def process_anonymous_message(message: types.Message, state: FSMContext):
     reply_button = InlineKeyboardButton("✏ Ответить", callback_data="reply")
     reply_markup.add(reply_button)
     try:
-        await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!<i>{message.text}</i>", reply_markup=reply_markup)
+        await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>", reply_markup=reply_markup)
     except aiogram.utils.exceptions.ChatNotFound:
         print("Chat not found, but continuing with other functions.")
     await state.update_data(data_obj.__dict__)
@@ -271,26 +271,7 @@ async def handle_all(message: types.Message, state: FSMContext):
 
     await asyncio.create_task(send_share_link_message(user_id, markup))
 
-async def get_updates_with_retry(bot, retries=5, delay=3):
-    for attempt in range(retries):
-        try:
-            updates = await bot.get_updates()
-            return updates
-        except NetworkError as e:
-            if attempt < retries - 1:
-                await asyncio.sleep(delay)
-                continue
-            else:
-                raise e
-
-async def start_polling():
-    try:
-        updates = await get_updates_with_retry(bot)
-    except Exception as e:
-        logging.error(f"Failed to get updates: {e}")
-
 async def main():
-    print("GO!")
     conn = await aiosqlite.connect('database.db')
     try:
         await create_tables(conn)
@@ -303,4 +284,5 @@ if __name__ == '__main__':
     from aiogram import executor
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
+    print("GO!")
     executor.start_polling(dp, skip_updates=True)
