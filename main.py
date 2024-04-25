@@ -165,7 +165,7 @@ async def process_anonymous_message(message: types.Message, state: FSMContext):
     reply_button = InlineKeyboardButton("✏ Ответить", callback_data="reply")
     reply_markup.add(reply_button)
     try:
-        await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<blockquote>{message.text}</blockquote>", reply_markup=reply_markup)
+        await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!<i>{message.text}</i>", reply_markup=reply_markup)
     except aiogram.utils.exceptions.ChatNotFound:
         print("Chat not found, but continuing with other functions.")
     await state.update_data(data_obj.__dict__)
@@ -232,7 +232,7 @@ async def process_anonymous_reply(message: types.Message, state: FSMContext):
     reply_markup.add(reply_button)
 
     try:
-        await bot.send_message(sender_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<blockquote>{message.text}</blockquote>", reply_markup=reply_markup)
+        await bot.send_message(sender_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>", reply_markup=reply_markup)
     except aiogram.utils.exceptions.ChatNotFound:
         print("Chat not found, but continuing with other functions.")
 
