@@ -1,6 +1,8 @@
 import aiogram
 import asyncio
+from aiogram.utils.exceptions import NetworkError
 import aiosqlite
+import time
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
@@ -240,8 +242,21 @@ from handlers import *
 
 media_group_ids_processed = deque(maxlen=1000)
 
+last_message_times = {}
+
 @dp.message_handler(content_types=['text', 'photo', 'video', 'sticker', 'voice', 'video_note'])
 async def handle_all(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    current_time = time.time()
+
+    # Проверяем, не слишком ли быстро было отправлено сообщение
+    if user_id in last_message_times:
+        last_message_time = last_message_times[user_id]
+        if current_time - last_message_time < 0.5:  # Задаем допустимый интервал между сообщениями (например, 2 секунды)
+            return  # Пропускаем сообщение, если оно было отправлено слишком быстро
+
+    # Обновляем время последнего сообщения для этого пользователя
+    last_message_times[user_id] = current_time
     media_group_id = message.media_group_id
     if media_group_id is not None:
         if media_group_id in media_group_ids_processed:
@@ -256,7 +271,26 @@ async def handle_all(message: types.Message, state: FSMContext):
 
     await asyncio.create_task(send_share_link_message(user_id, markup))
 
+async def get_updates_with_retry(bot, retries=5, delay=3):
+    for attempt in range(retries):
+        try:
+            updates = await bot.get_updates()
+            return updates
+        except NetworkError as e:
+            if attempt < retries - 1:
+                await asyncio.sleep(delay)
+                continue
+            else:
+                raise e
+
+async def start_polling():
+    try:
+        updates = await get_updates_with_retry(bot)
+    except Exception as e:
+        logging.error(f"Failed to get updates: {e}")
+
 async def main():
+    print("GO!")
     conn = await aiosqlite.connect('database.db')
     try:
         await create_tables(conn)
@@ -269,5 +303,4 @@ if __name__ == '__main__':
     from aiogram import executor
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-    print("GO!")
     executor.start_polling(dp, skip_updates=True)
