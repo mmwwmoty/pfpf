@@ -51,6 +51,8 @@ async def create_tables(conn):
                           (id INTEGER PRIMARY KEY, username TEXT)''')
         await cursor.execute('''CREATE TABLE IF NOT EXISTS anonymous_messages
                           (sender_id INTEGER, recipient_id INTEGER, message TEXT)''')
+        await cursor.execute('''CREATE INDEX IF NOT EXISTS idx_sender_id ON anonymous_messages (sender_id)''')
+        await cursor.execute('''CREATE INDEX IF NOT EXISTS idx_recipient_id ON anonymous_messages (recipient_id)''')
     await conn.commit()
 
 async def get_sender_id(recipient_id, conn):
@@ -112,9 +114,9 @@ async def send_anonymous_message_instructions(chat_id, markup):
 
 async def send_share_link_message(user_id, markup):
     try:
-        await bot.send_message(user_id, f"<b>Начните получать анонимные вопросы прямо сейчас!</b>\n\n"
-                                        f"👉 <a href='t.me/Ietsqbot?start={user_id}'>t.me/Ietsqbot?start={user_id}</a>\n\n"
-                                        "<b>Разместите эту ссылку</b> ☝️ в описании своего профиля Telegram, TikTok, Instagram (stories), <b>чтобы вам могли написать 💬</b>",
+        await bot.send_message(user_id, f"<b>🚀 Начните получать анонимные вопросы прямо сейчас!</b>\n\n"
+                                        f"<i>Твоя личная ссылка:</i>\n👉 <a href='t.me/Ietsqbot?start={user_id}'>t.me/Ietsqbot?start={user_id}</a>\n\n"
+                                        "<i>Разместите эту ссылку ☝️ в своём профиле <b>Telegram/TikTok/Instagram</b> или другиъ соц сетях, чтобы начать получать сообщения 💬</i>",
                                reply_markup=markup, disable_web_page_preview=True)
     except Exception as e:
         logging.error(f"Ошибка при отправке сообщения: {e}")
@@ -126,9 +128,9 @@ async def process_callback_cancel(callback_query: types.CallbackQuery, state: FS
     markup = InlineKeyboardMarkup()
     share_button = InlineKeyboardButton("🔗 Поделиться ссылкой", url=f"https://t.me/share/url?url=%D0%97%D0%B0%D0%B4%D0%B0%D0%B9%20%D0%BC%D0%BD%D0%B5%20%D0%B0%D0%BD%D0%BE%D0%BD%D0%B8%D0%BC%D0%BD%D1%8B%D0%B9%20%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81%0A%F0%9F%91%89%20http://t.me/Ietsqbot?start={user_id}")
     markup.add(share_button)
-    new_text = f"<b>Начните получать анонимные вопросы прямо сейчас!</b>\n\n" \
-               f"👉 <a href='t.me/Ietsqbot?start={user_id}'>t.me/Ietsqbot?start={user_id}</a>\n\n" \
-               f"<b>Разместите эту ссылку</b> ☝️ в описании своего профиля Telegram, TikTok, Instagram (stories), <b>чтобы вам могли написать 💬</b>"
+    new_text = f"<b>🚀 Начните получать анонимные вопросы прямо сейчас!</b>\n\n" \
+               f"<i>Твоя личная ссылка:</i>\n👉 <a href='t.me/Ietsqbot?start={user_id}'>t.me/Ietsqbot?start={user_id}</a>\n\n" \
+               f"<i>Разместите эту ссылку ☝️ в своём профиле <b>Telegram/TikTok/Instagram</b> или другиъ соц сетях, чтобы начать получать сообщения 💬</i>"
 
     try:
         await bot.edit_message_text(chat_id=user_id, message_id=callback_query.message.message_id, text=new_text,
@@ -140,103 +142,116 @@ async def process_callback_cancel(callback_query: types.CallbackQuery, state: FS
 
 @dp.message_handler(state=Form.anonymous_message)
 async def process_anonymous_message(message: types.Message, state: FSMContext):
-    if check_start_command(message.text):
-        markup = InlineKeyboardMarkup()
-        cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
-        markup.add(cancel_button)
-        await send_anonymous_message_instructions(message.from_user.id, markup)
-        return
-    async with state.proxy() as data:
-        data_obj = FormData(**data)
-        recipient_id = data_obj.recipient_id
-        data_obj.anonymous_message = message.text
-        data_obj.sender_id = message.from_user.id
-    conn = await aiosqlite.connect('database.db')
-    try:
-        async with conn.cursor() as cursor:
-            await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, message.text))
-        await conn.commit()
-    finally:
-        await conn.close()
+   if check_start_command(message.text):
+       markup = InlineKeyboardMarkup()
+       cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
+       markup.add(cancel_button)
+       await send_anonymous_message_instructions(message.from_user.id, markup)
+       return
 
-    await message.answer(f"Сообщение отправлено, ожидайте ответ!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📨 Написать ещё", callback_data="send_again")]]))
+   try:
+       async with state.proxy() as data:
+           data_obj = FormData(**data)
+           recipient_id = data_obj.recipient_id
+           data_obj.anonymous_message = message.text
+           data_obj.sender_id = message.from_user.id
 
-    reply_markup = InlineKeyboardMarkup()
-    reply_button = InlineKeyboardButton("✏ Ответить", callback_data="reply")
-    reply_markup.add(reply_button)
-    try:
-        await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>", reply_markup=reply_markup)
-    except aiogram.utils.exceptions.ChatNotFound:
-        print("Chat not found, but continuing with other functions.")
-    await state.update_data(data_obj.__dict__)
-    await state.finish()
+       conn = await get_connection()
+       async with conn.cursor() as cursor:
+           await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, message.text))
+       await conn.commit()
 
-@dp.callback_query_handler(lambda c: c.data == 'send_again', state='*')
+       await message.answer(f"Сообщение отправлено, ожидайте ответ!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📨 Написать ещё", callback_data=f"send_again:{recipient_id}")]]))
+
+       reply_markup = InlineKeyboardMarkup()
+       reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
+       reply_markup.add(reply_button)
+       try:
+           await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>", reply_markup=reply_markup)
+       except aiogram.utils.exceptions.ChatNotFound:
+           logging.warning("Chat not found, but continuing with other functions.")
+
+       await state.update_data(data_obj.__dict__)
+       await state.finish()
+   except Exception as e:
+       logging.error(f"Error processing anonymous message: {e}")
+       await message.answer("Произошла ошибка при обработке сообщения. Пожалуйста, попробуйте снова позже.")
+
+@dp.callback_query_handler(lambda c: c.data.startswith('send_again'), state='*')
 async def process_callback_send_again(callback_query: types.CallbackQuery, state: FSMContext):
-    await bot.answer_callback_query(callback_query.id)
-    sender_id = callback_query.from_user.id
-    conn = await get_connection()
-    recipient_id = await get_recipient_id(sender_id, conn)
-    if recipient_id:
-        markup = InlineKeyboardMarkup()
-        cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
-        markup.add(cancel_button)
-        await send_anonymous_message_instructions(callback_query.from_user.id, markup)
-        await Form.anonymous_message.set()
-        await state.update_data({"recipient_id": recipient_id})
-    else:
-        await bot.send_message(callback_query.from_user.id, "Не удалось найти получателя. Пожалуйста, начните заново.")
+   await bot.answer_callback_query(callback_query.id)
+   sender_id = callback_query.from_user.id
+   conn = await get_connection()
 
-@dp.callback_query_handler(lambda c: c.data == 'reply', state='*')
+   try:
+       recipient_id = int(callback_query.data.split(':')[1])
+       markup = InlineKeyboardMarkup()
+       cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
+       markup.add(cancel_button)
+       await send_anonymous_message_instructions(callback_query.from_user.id, markup)
+       await Form.anonymous_message.set()
+       await state.update_data({"recipient_id": recipient_id})
+   except Exception as e:
+       logging.error(f"Error processing send_again callback: {e}")
+       await bot.send_message(callback_query.from_user.id, "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте снова позже.")
+
+@dp.callback_query_handler(lambda c: c.data.startswith('reply'), state='*')
 async def process_callback_reply(callback_query: types.CallbackQuery, state: FSMContext):
-    await bot.answer_callback_query(callback_query.id)
-    recipient_id = callback_query.from_user.id
-    conn = await get_connection()
-    sender_id = await get_sender_id(recipient_id, conn)
-    if sender_id:
-        markup = InlineKeyboardMarkup()
-        cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
-        markup.add(cancel_button)
-        await send_anonymous_message_instructions(callback_query.from_user.id, markup)
-        await Form.anonymous_reply.set()
-        await state.update_data({"sender_id": sender_id, "recipient_id": recipient_id})
-    else:
-        await bot.send_message(callback_query.from_user.id, "Не удалось найти отправителя. Пожалуйста, начните заново.")
+   await bot.answer_callback_query(callback_query.id)
+   recipient_id = callback_query.from_user.id
+   conn = await get_connection()
+
+   try:
+       sender_id = int(callback_query.data.split(':')[1])
+       markup = InlineKeyboardMarkup()
+       cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
+       markup.add(cancel_button)
+       await send_anonymous_message_instructions(callback_query.from_user.id, markup)
+       await Form.anonymous_reply.set()
+       await state.update_data({"sender_id": sender_id, "recipient_id": recipient_id})
+   except Exception as e:
+       logging.error(f"Error processing reply callback: {e}")
+       await bot.send_message(callback_query.from_user.id, "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте снова позже.")
 
 @dp.message_handler(state=Form.anonymous_reply)
 async def process_anonymous_reply(message: types.Message, state: FSMContext):
-    if check_start_command(message.text):
-        markup = InlineKeyboardMarkup()
-        cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
-        markup.add(cancel_button)
-        await send_anonymous_message_instructions(message.from_user.id, markup)
-        return
-    async with state.proxy() as data:
-        data_obj = FormData(**data)
-        sender_id = data_obj.sender_id
-        recipient_id = data_obj.recipient_id
-        data_obj.anonymous_reply = message.text
-    conn = await get_connection()
-    async with conn.cursor() as cursor:
-        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, message.text))
-    await conn.commit()
+   if check_start_command(message.text):
+       markup = InlineKeyboardMarkup()
+       cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
+       markup.add(cancel_button)
+       await send_anonymous_message_instructions(message.from_user.id, markup)
+       return
 
-    reply_markup = InlineKeyboardMarkup()
-    reply_button = InlineKeyboardButton("📨 Написать ещё", callback_data="send_again")
-    reply_markup.add(reply_button)
+   try:
+       async with state.proxy() as data:
+           data_obj = FormData(**data)
+           sender_id = data_obj.sender_id
+           recipient_id = data_obj.recipient_id
+           data_obj.anonymous_reply = message.text
 
-    await message.answer(f"Сообщение отправлено, ожидайте ответ!", reply_markup=reply_markup)
+       conn = await get_connection()
+       async with conn.cursor() as cursor:await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, message.text))
+       await conn.commit()
 
-    reply_markup = InlineKeyboardMarkup()
-    reply_button = InlineKeyboardButton("✏ Ответить", callback_data="reply")
-    reply_markup.add(reply_button)
+       reply_markup = InlineKeyboardMarkup()
+       reply_button = InlineKeyboardButton("📨 Написать ещё", callback_data=f"send_again:{sender_id}")
+       reply_markup.add(reply_button)
 
-    try:
-        await bot.send_message(sender_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>", reply_markup=reply_markup)
-    except aiogram.utils.exceptions.ChatNotFound:
-        print("Chat not found, but continuing with other functions.")
+       await message.answer(f"Сообщение отправлено, ожидайте ответ!", reply_markup=reply_markup)
 
-    await state.finish()
+       reply_markup = InlineKeyboardMarkup()
+       reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
+       reply_markup.add(reply_button)
+
+       try:
+           await bot.send_message(sender_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>", reply_markup=reply_markup)
+       except aiogram.utils.exceptions.ChatNotFound:
+           logging.warning("Chat not found, but continuing with other functions.")
+
+       await state.finish()
+   except Exception as e:
+       logging.error(f"Error processing anonymous reply: {e}")
+       await message.answer("Произошла ошибка при обработке сообщения. Пожалуйста, попробуйте снова позже.")
 
 from handlers import *
 
