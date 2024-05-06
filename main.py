@@ -16,12 +16,10 @@ from dataclasses import dataclass
 # Настройка логгирования
 logging.basicConfig(level=logging.INFO)
 
-# Разделение конфигурации и кода
 TOKEN = '7083060784:AAGahUaPvGKB6tLYpMaSsD_abPUXR_I-u4s'
 bot = Bot(token=TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# Использование dataclass для представления состояния
 @dataclass
 class FormData:
     recipient_id: Optional[int] = None
@@ -37,7 +35,6 @@ class Form(StatesGroup):
 class PhotoProcessing(StatesGroup):
     waiting_for_photos = State()
 
-# Кэширование подключения к базе данных
 conn_cache = {}
 
 async def get_connection():
@@ -116,10 +113,15 @@ async def send_share_link_message(user_id, markup):
     try:
         await bot.send_message(user_id, f"<b>🚀 Начните получать анонимные вопросы прямо сейчас!</b>\n\n"
                                         f"<i>Твоя личная ссылка:</i>\n👉 <a href='t.me/Ietsqbot?start={user_id}'>t.me/Ietsqbot?start={user_id}</a>\n\n"
-                                        "<i>Разместите эту ссылку ☝️ в своём профиле <b>Telegram/TikTok/Instagram</b> или другиъ соц сетях, чтобы начать получать сообщения 💬</i>",
+                                        "<i>Разместите эту ссылку ☝️ в своём профиле <b>Telegram/TikTok/Instagram</b> или других соц сетях, чтобы начать получать сообщения 💬</i>",
                                reply_markup=markup, disable_web_page_preview=True)
     except Exception as e:
         logging.error(f"Ошибка при отправке сообщения: {e}")
+
+async def get_share_link_message_text(user_id):
+    return f"<b>🚀 Начните получать анонимные вопросы прямо сейчас!</b>\n\n" \
+           f"<i>Твоя личная ссылка:</i>\n👉 <a href='t.me/Ietsqbot?start={user_id}'>t.me/Ietsqbot?start={user_id}</a>\n\n" \
+           f"<i>Разместите эту ссылку ☝️ в своём профиле <b>Telegram/TikTok/Instagram</b> или других соц сетях, чтобы начать получать сообщения 💬</i>"
 
 @dp.callback_query_handler(lambda c: c.data == 'cancel', state='*')
 async def process_callback_cancel(callback_query: types.CallbackQuery, state: FSMContext):
@@ -142,40 +144,47 @@ async def process_callback_cancel(callback_query: types.CallbackQuery, state: FS
 
 @dp.message_handler(state=Form.anonymous_message)
 async def process_anonymous_message(message: types.Message, state: FSMContext):
-   if check_start_command(message.text):
-       markup = InlineKeyboardMarkup()
-       cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
-       markup.add(cancel_button)
-       await send_anonymous_message_instructions(message.from_user.id, markup)
-       return
+    if check_start_command(message.text):
+        markup = InlineKeyboardMarkup()
+        cancel_button = InlineKeyboardButton("✖️ Отменить", callback_data="cancel")
+        markup.add(cancel_button)
+        await send_anonymous_message_instructions(message.from_user.id, markup)
+        return
 
-   try:
-       async with state.proxy() as data:
-           data_obj = FormData(**data)
-           recipient_id = data_obj.recipient_id
-           data_obj.anonymous_message = message.text
-           data_obj.sender_id = message.from_user.id
+    try:
+        async with state.proxy() as data:
+            data_obj = FormData(**data)
+            recipient_id = data_obj.recipient_id
+            data_obj.anonymous_message = message.text
+            data_obj.sender_id = message.from_user.id
 
-       conn = await get_connection()
-       async with conn.cursor() as cursor:
-           await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, message.text))
-       await conn.commit()
+        conn = await get_connection()
+        async with conn.cursor() as cursor:
+            await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, message.text))
+        await conn.commit()
 
-       await message.answer(f"Сообщение отправлено, ожидайте ответ!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📨 Написать ещё", callback_data=f"send_again:{recipient_id}")]]))
+        # Заменяем инструкции на функцию send_share_link_message
+        user_id = message.from_user.id
+        markup = InlineKeyboardMarkup()
+        share_button = InlineKeyboardButton("🔗 Поделиться ссылкой", url=f"https://t.me/share/url?url=%D0%97%D0%B0%D0%B4%D0%B0%D0%B9%20%D0%BC%D0%BD%D0%B5%20%D0%B0%D0%BD%D0%BE%D0%BD%D0%B8%D0%BC%D0%BD%D1%8B%D0%B9%20%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81%0A%F0%9F%91%89%20http://t.me/Ietsqbot?start={user_id}")
+        markup.add(share_button)
+        await bot.edit_message_text(chat_id=message.from_user.id, message_id=message.message_id - 1, text=await get_share_link_message_text(user_id), reply_markup=markup, disable_web_page_preview=True)
 
-       reply_markup = InlineKeyboardMarkup()
-       reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
-       reply_markup.add(reply_button)
-       try:
-           await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>", reply_markup=reply_markup)
-       except aiogram.utils.exceptions.ChatNotFound:
-           logging.warning("Chat not found, but continuing with other functions.")
+        await message.answer(f"Сообщение отправлено, ожидайте ответ!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📨 Написать ещё", callback_data=f"send_again:{recipient_id}")]]))
 
-       await state.update_data(data_obj.__dict__)
-       await state.finish()
-   except Exception as e:
-       logging.error(f"Error processing anonymous message: {e}")
-       await message.answer("Произошла ошибка при обработке сообщения. Пожалуйста, попробуйте снова позже.")
+        reply_markup = InlineKeyboardMarkup()
+        reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
+        reply_markup.add(reply_button)
+        try:
+            await bot.send_message(recipient_id, f"<b>🔔 У тебя новое сообщение!</b>\n\n<i>{message.text}</i>", reply_markup=reply_markup)
+        except aiogram.utils.exceptions.ChatNotFound:
+            logging.warning("Chat not found, but continuing with other functions.")
+
+        await state.update_data(data_obj.__dict__)
+        await state.finish()
+    except Exception as e:
+        logging.error(f"Error processing anonymous message: {e}")
+        await message.answer("Произошла ошибка при обработке сообщения. Пожалуйста, попробуйте снова позже.")
 
 @dp.callback_query_handler(lambda c: c.data.startswith('send_again'), state='*')
 async def process_callback_send_again(callback_query: types.CallbackQuery, state: FSMContext):
