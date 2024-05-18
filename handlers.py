@@ -24,6 +24,7 @@ async def process_anonymous_photo(message: types.Message, state: FSMContext):
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, photo_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
@@ -49,6 +50,7 @@ async def process_anonymous_reply_photo(message: types.Message, state: FSMContex
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, photo_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("📨 Написать ещё", callback_data=f"send_again:{sender_id}")
@@ -74,6 +76,7 @@ async def process_anonymous_video(message: types.Message, state: FSMContext):
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, video_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
@@ -99,6 +102,7 @@ async def process_anonymous_reply_video(message: types.Message, state: FSMContex
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, video_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("📨 Написать ещё", callback_data=f"send_again:{sender_id}")
@@ -124,6 +128,7 @@ async def process_anonymous_voice(message: types.Message, state: FSMContext):
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, voice_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
@@ -149,6 +154,7 @@ async def process_anonymous_reply_voice(message: types.Message, state: FSMContex
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, voice_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("📨 Написать ещё", callback_data=f"send_again:{sender_id}")
@@ -174,6 +180,7 @@ async def process_anonymous_video_note(message: types.Message, state: FSMContext
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, video_note_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
@@ -200,6 +207,7 @@ async def process_anonymous_reply_video_note(message: types.Message, state: FSMC
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, video_note_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("📨 Написать ещё", callback_data=f"send_again:{sender_id}")
@@ -227,6 +235,7 @@ async def process_anonymous_sticker(message: types.Message, state: FSMContext):
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, sticker_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
@@ -253,6 +262,7 @@ async def process_anonymous_reply_sticker(message: types.Message, state: FSMCont
     async with conn.cursor() as cursor:
         await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, sticker_id))
     await conn.commit()
+    await conn.close()
 
     reply_markup = InlineKeyboardMarkup()
     reply_button = InlineKeyboardButton("📨 Написать ещё", callback_data=f"send_again:{sender_id}")
@@ -268,3 +278,56 @@ async def process_anonymous_reply_sticker(message: types.Message, state: FSMCont
     await bot.send_message(chat_id=sender_id, text="<b>🔔 У тебя новое сообщение!</b>\n\n", reply_markup=reply_markup, reply_to_message_id=sticker_message.message_id, parse_mode="HTML")
 
     await state.finish()
+
+@dp.message_handler(content_types=['animation'], state=Form.anonymous_message)
+async def process_anonymous_gif(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data_obj = FormData(**data)
+        recipient_id = data_obj.recipient_id
+    gif_id = message.animation.file_id
+
+    conn = await get_connection()
+    async with conn.cursor() as cursor:
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, recipient_id, gif_id))
+    await conn.commit()
+    await conn.close()
+
+    reply_markup = InlineKeyboardMarkup()
+    reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
+    reply_markup.add(reply_button)
+
+    await bot.send_animation(chat_id=recipient_id, animation=gif_id, caption="<b>🔔 У тебя новое сообщение!</b>\n\n", reply_markup=reply_markup, parse_mode="HTML")
+
+    again_markup = InlineKeyboardMarkup()
+    again_button = InlineKeyboardButton("📨 Написать ещё", callback_data=f"send_again:{recipient_id}")
+    again_markup.add(again_button)
+
+    await bot.send_message(message.from_user.id, "Сообщение отправлено, ожидайте ответ!", reply_markup=again_markup)
+    await state.finish()
+
+@dp.message_handler(content_types=['animation'], state=Form.anonymous_reply)
+async def process_anonymous_reply_gif(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data_obj = FormData(**data)
+        sender_id = data_obj.sender_id
+    gif_id = message.animation.file_id
+
+    conn = await get_connection()
+    async with conn.cursor() as cursor:
+        await cursor.execute("INSERT INTO anonymous_messages (sender_id, recipient_id, message) VALUES (?, ?, ?)", (message.from_user.id, sender_id, gif_id))
+    await conn.commit()
+    await conn.close()
+
+    reply_markup = InlineKeyboardMarkup()
+    reply_button = InlineKeyboardButton("📨 Написать ещё", callback_data=f"send_again:{sender_id}")
+    reply_markup.add(reply_button)
+
+    await message.answer(f"Сообщение отправлено, ожидайте ответ!", reply_markup=reply_markup)
+
+    reply_markup = InlineKeyboardMarkup()
+    reply_button = InlineKeyboardButton("✏ Ответить", callback_data=f"reply:{message.from_user.id}")
+    reply_markup.add(reply_button)
+
+    await bot.send_animation(sender_id, gif_id, caption="<b>🔔 У тебя новое сообщение!</b>\n\n", reply_markup=reply_markup, parse_mode="HTML")
+    await state.finish()
+
