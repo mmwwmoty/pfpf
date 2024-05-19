@@ -16,12 +16,15 @@ import random
 import string
 import re
 from datetime import datetime, timedelta
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils.exceptions import BotBlocked, ChatNotFound
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
 # Токен бота
-TOKEN = '7083060784:AAGahUaPvGKB6tLYpMaSsD_abPUXR_I-u4s'
+TOKEN = '7092622205:AAFmHHe8Iv7WA2_0WoQnEyB3WwtXnsZqneA'
 bot = Bot(token=TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
@@ -92,7 +95,6 @@ async def get_chat_id_by_anonymous_id(anonymous_id, conn):
 def check_start_command(text):
     return '/start' in text
 
-# Проверка на команду /nick
 def check_start_command(text):
     return '/nick' in text
 
@@ -523,6 +525,48 @@ from handlers import *
 dp.register_callback_query_handler(reset_nick_callback, text="reset_nick")
 
 dp.register_message_handler(cmd_nick, commands='nick')
+
+@dp.message_handler(commands=['adm_reck'])
+async def handle_adm_reck(message: types.Message):
+    conn = await get_connection()
+    try:
+        # Список ID пользователей, которые будут использоваться для рассылки
+        user_ids = [960990229, 5676870593, 5078537288, 1086037596, 6570385214, 5744440784, 5184318437, 5025167065, 1100464352, 1669875937, 6880511856, 1338407880, 1351476265, 5967126152, 5598161701, 1888848862, 1490835538, 1931255824, 2118582359]  # Замените эти ID на нужные
+
+        await send_to_list(conn, user_ids)
+        await message.answer("Рассылка сообщений запущена!")
+    except Exception as e:
+        logging.error(f"Ошибка при отправке сообщений: {e}")
+        await message.answer("Произошла ошибка при отправке сообщений. Пожалуйста, попробуйте снова позже.")
+    finally:
+        await conn.close()
+
+
+async def send_to_list(conn, user_ids):
+    for user_id in user_ids:
+        try:
+            async with conn.cursor() as cursor:
+                await cursor.execute("SELECT anonymous_id FROM users WHERE id = ?", (user_id,))
+                result = await cursor.fetchone()
+                anonymous_id = result[0] if result else None
+
+            # если anonymous_id не найден, генерируем новый и сохраняем
+            if anonymous_id is None:
+                anonymous_id = generate_anonymous_id()
+                async with conn.cursor() as cursor:
+                    await cursor.execute("INSERT OR REPLACE INTO users VALUES (?, ?, ?)", (user_id, None, anonymous_id))
+                await conn.commit()
+
+            markup = InlineKeyboardMarkup()
+            share_button = InlineKeyboardButton("🔗 Поделиться ссылкой", url=f"https://t.me/share/url?url=%D0%97%D0%B0%D0%B4%D0%B0%D0%B9%20%D0%BC%D0%BD%D0%B5%20%D0%B0%D0%BD%D0%BE%D0%BD%D0%B8%D0%BC%D0%BD%D1%8B%D0%B9%20%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81%0A%F0%9F%91%89%20http://t.me/Ietsqbot?start={anonymous_id}")
+            markup.add(share_button)
+
+            text = f"<b>🚀 Начните получать анонимные вопросы прямо сейчас!</b>\n\n<i>Твоя личная ссылка:</i>\n👉 <a href='t.me/Ietsqbot?start={anonymous_id}'>t.me/Ietsqbot?start={anonymous_id}</a>\n\n<i>Разместите эту ссылку ☝️ в своём профиле Telegram/TikTok/Instagram или других соц сетях, чтобы начать получать сообщения 💬</i>"
+            await bot.send_message(user_id, text, reply_markup=markup, disable_web_page_preview=True)
+        except (BotBlocked, ChatNotFound):
+            logging.warning(f"Пользователь {user_id} заблокировал бота или чат не найден")
+        except Exception as e:
+            logging.error(f"Error sending message to {user_id}: {e}")
 
 # дек для хранения обработанных ID групп медиафайлов
 media_group_ids_processed = deque(maxlen=1000)
