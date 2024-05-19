@@ -1,24 +1,26 @@
-import aiogram
 import asyncio
-from aiogram.utils.exceptions import NetworkError, ChatNotFound, MessageNotModified
-import aiosqlite
+import logging
+import random
+import re
 import time
+from collections import deque
+from datetime import datetime, timedelta
+from typing import Optional
+
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from collections import deque
-import logging
-from typing import Optional
+from aiogram.utils.exceptions import (
+    BotBlocked,
+    ChatNotFound,
+    MessageNotModified,
+    NetworkError,
+)
 from dataclasses import dataclass
-import random
+import aiosqlite
 import string
-import re
-from datetime import datetime, timedelta
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils.exceptions import BotBlocked, ChatNotFound
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -95,7 +97,7 @@ async def get_chat_id_by_anonymous_id(anonymous_id, conn):
 def check_start_command(text):
     return '/start' in text
 
-def check_start_command(text):
+def check_nick_command(text):
     return '/nick' in text
 
 # Генерация случайного анонимного ID
@@ -169,7 +171,7 @@ async def start(message: types.Message, state: FSMContext):
                     }
 
                     # задачу для изменения сообщения
-                    asyncio.create_task(edit_message_after_delay(sent_message.message_id, 180)) # 120 секунд = 2 минуты
+                    asyncio.create_task(edit_message_after_delay(sent_message.message_id, 5)) # 120 секунд = 2 минуты
         else:
             # Создаем кнопку с ссылкой и добавляем текст
             markup = InlineKeyboardMarkup()
@@ -211,7 +213,7 @@ async def send_anonymous_message_instructions(chat_id, markup, recipient_id=None
             }
 
             # запускаем задачу для изменения сообщения
-            asyncio.create_task(edit_message_after_delay(sent_message.message_id, 180)) # 120 секунд = 2 минуты
+            asyncio.create_task(edit_message_after_delay(sent_message.message_id, 5)) # 120 секунд = 2 минуты
 
     except Exception as e:
         logging.error(f"Ошибка при отправке сообщения: {e}")
@@ -227,7 +229,18 @@ async def send_share_link_message(user_id, markup, anonymous_id):
         logging.error(f"Ошибка при отправке сообщения: {e}")
 
 # получение текста сообщения с ссылкой
-async def get_share_link_message_text(user_id, anonymous_id):
+async def get_share_link_message_text(user_id): 
+   conn = await get_connection()
+   try:
+       async with conn.cursor() as cursor:
+           await cursor.execute("SELECT anonymous_id FROM users WHERE id = ?", (user_id,))
+           result = await cursor.fetchone()
+           anonymous_id = result[0] if result else None
+   except Exception as e:
+       logging.error(f"Ошибка при работе с базой данных: {e}")
+   finally:
+       await conn.close()
+
    return f"<b>🚀 Начните получать анонимные вопросы прямо сейчас!</b>\n\n" \
           f"<i>Твоя личная ссылка:</i>\n👉 <a href='t.me/Ietsqbot?start={anonymous_id}'>t.me/Ietsqbot?start={anonymous_id}</a>\n\n" \
           f"<i>Разместите эту ссылку ☝️ в своём профиле <b>Telegram/TikTok/Instagram</b> или других соц сетях, чтобы начать получать сообщения 💬</i>"
@@ -273,7 +286,7 @@ async def edit_message_after_delay(message_id, delay):
             await conn.close()
 
         # создаем новую клавиатуру с кнопкой "Поделиться ссылкой"
-        user_id = chat_id
+        user_id = chat_id # Используем chat_id из message_info
         markup = InlineKeyboardMarkup()
         share_button = InlineKeyboardButton("🔗 Поделиться ссылкой",
                                             url=f"https://t.me/share/url?url=%D0%97%D0%B0%D0%B4%D0%B0%D0%B9%20%D0%BC%D0%BD%D0%B5%20%D0%B0%D0%BD%D0%BE%D0%BD%D0%B8%D0%BC%D0%BD%D1%8B%D0%B9%20%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81%0A%F0%9F%91%89%20http://t.me/Ietsqbot?start={anonymous_id}")
@@ -281,8 +294,8 @@ async def edit_message_after_delay(message_id, delay):
 
         try:
             # изменяем сообщение на текст с предложением поделиться ссылкой
-            await bot.edit_message_text(chat_id=chat_id, message_id=message_id,
-                                        text=await get_share_link_message_text(user_id, anonymous_id),
+            await bot.edit_message_text(chat_id=chat_id, message_id=message_id, # Используем chat_id и message_id из message_info
+                                        text=await get_share_link_message_text(user_id),
                                         reply_markup=markup,
                                         disable_web_page_preview=True)
 
@@ -384,7 +397,7 @@ async def process_anonymous_message(message: types.Message, state: FSMContext):
             bot.edit_message_text(
                 chat_id=message.from_user.id,
                 message_id=message.message_id - 1,
-                text=await get_share_link_message_text(user_id, anonymous_id),
+                text=await get_share_link_message_text(message.from_user.id),  # передаем user_id
                 reply_markup=markup,
                 disable_web_page_preview=True
             )
@@ -503,7 +516,7 @@ async def process_anonymous_reply(message: types.Message, state: FSMContext):
             bot.edit_message_text(
                 chat_id=message.from_user.id,
                 message_id=message.message_id - 1,
-                text=await get_share_link_message_text(user_id, anonymous_id),
+                text=await get_share_link_message_text(message.from_user.id),  # передаем user_id
                 reply_markup=markup,
                 disable_web_page_preview=True
             )
@@ -531,7 +544,7 @@ async def handle_adm_reck(message: types.Message):
     conn = await get_connection()
     try:
         # Список ID пользователей, которые будут использоваться для рассылки
-        user_ids = [960990229, 5676870593, 5078537288, 1086037596, 6570385214, 5744440784, 5184318437, 5025167065, 1100464352, 1669875937, 6880511856, 1338407880, 1351476265, 5967126152, 5598161701, 1888848862, 1490835538, 1931255824, 2118582359]  # Замените эти ID на нужные
+        user_ids = [960990229, 5676870593, 5078537288, 1086037596, 6570385214, 5744440784, 5184318437, 5025167065, 1100464352, 1669875937, 6880511856, 1338407880, 1351476265, 5967126152, 5598161701, 1888848862, 1490835538, 1931255824, 2118582359, 5329240621, 516951553]  # Замените эти ID на нужные
 
         await send_to_list(conn, user_ids)
         await message.answer("Рассылка сообщений запущена!")
