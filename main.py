@@ -92,6 +92,10 @@ async def get_chat_id_by_anonymous_id(anonymous_id, conn):
 def check_start_command(text):
     return '/start' in text
 
+# Проверка на команду /nick
+def check_start_command(text):
+    return '/nick' in text
+
 # Генерация случайного анонимного ID
 def generate_anonymous_id():
     random_part = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
