@@ -24,7 +24,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 logging.basicConfig(level=logging.INFO)
 
 # Токен бота
-TOKEN = '7092622205:AAFmHHe8Iv7WA2_0WoQnEyB3WwtXnsZqneA'
+TOKEN = '7083060784:AAGahUaPvGKB6tLYpMaSsD_abPUXR_I-u4s'
 bot = Bot(token=TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
