@@ -171,7 +171,7 @@ async def start(message: types.Message, state: FSMContext):
                     }
 
                     # задачу для изменения сообщения
-                    asyncio.create_task(edit_message_after_delay(sent_message.message_id, 5)) # 120 секунд = 2 минуты
+                    asyncio.create_task(edit_message_after_delay(sent_message.message_id, 600)) # 120 секунд = 2 минуты
         else:
             # Создаем кнопку с ссылкой и добавляем текст
             markup = InlineKeyboardMarkup()
@@ -213,7 +213,7 @@ async def send_anonymous_message_instructions(chat_id, markup, recipient_id=None
             }
 
             # запускаем задачу для изменения сообщения
-            asyncio.create_task(edit_message_after_delay(sent_message.message_id, 5)) # 120 секунд = 2 минуты
+            asyncio.create_task(edit_message_after_delay(sent_message.message_id, 600)) # 120 секунд = 2 минуты
 
     except Exception as e:
         logging.error(f"Ошибка при отправке сообщения: {e}")
