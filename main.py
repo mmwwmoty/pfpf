@@ -229,21 +229,21 @@ async def send_share_link_message(user_id, markup, anonymous_id):
         logging.error(f"Ошибка при отправке сообщения: {e}")
 
 # получение текста сообщения с ссылкой
-async def get_share_link_message_text(user_id): 
-   conn = await get_connection()
-   try:
-       async with conn.cursor() as cursor:
-           await cursor.execute("SELECT anonymous_id FROM users WHERE id = ?", (user_id,))
-           result = await cursor.fetchone()
-           anonymous_id = result[0] if result else None
-   except Exception as e:
-       logging.error(f"Ошибка при работе с базой данных: {e}")
-   finally:
-       await conn.close()
+async def get_share_link_message_text(user_id):
+    conn = await get_connection()
+    try:
+        async with conn.cursor() as cursor:
+            await cursor.execute("SELECT anonymous_id FROM users WHERE id = ?", (user_id,))
+            result = await cursor.fetchone()
+            anonymous_id = result[0] if result else None
+    except Exception as e:
+        logging.error(f"Ошибка при работе с базой данных: {e}")
+    finally:
+        await conn.close()
 
-   return f"<b>🚀 Начните получать анонимные вопросы прямо сейчас!</b>\n\n" \
-          f"<i>Твоя личная ссылка:</i>\n👉 <a href='t.me/Ietsqbot?start={anonymous_id}'>t.me/Ietsqbot?start={anonymous_id}</a>\n\n" \
-          f"<i>Разместите эту ссылку ☝️ в своём профиле <b>Telegram/TikTok/Instagram</b> или других соц сетях, чтобы начать получать сообщения 💬</i>"
+    return f"<b>🚀 Начните получать анонимные вопросы прямо сейчас!</b>\n\n" \
+           f"<i>Твоя личная ссылка:</i>\n👉 <a href='t.me/Ietsqbot?start={anonymous_id}'>t.me/Ietsqbot?start={anonymous_id}</a>\n\n" \
+           f"<i>Разместите эту ссылку ☝️ в своём профиле <b>Telegram/TikTok/Instagram</b> или других соц сетях, чтобы начать получать сообщения 💬</i>"
 
 # вставка данных в базу данных
 async def async_insert_into_db(conn, sender_id, recipient_id, message_text):
@@ -312,6 +312,8 @@ async def edit_message_after_delay(message_id, delay):
 async def process_callback_cancel(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
     user_id = callback_query.from_user.id
+
+    # получаем anonymous_id из базы данных
     conn = await get_connection()
     try:
         async with conn.cursor() as cursor:
@@ -323,10 +325,13 @@ async def process_callback_cancel(callback_query: types.CallbackQuery, state: FS
     finally:
         await conn.close()
 
+    # получаем текст сообщения с ссылкой 
+    new_text = await get_share_link_message_text(user_id) 
+
+    # создаем клавиатуру с кнопкой "Поделиться ссылкой"
     markup = InlineKeyboardMarkup()
     share_button = InlineKeyboardButton("🔗 Поделиться ссылкой", url=f"https://t.me/share/url?url=%D0%97%D0%B0%D0%B4%D0%B0%D0%B9%20%D0%BC%D0%BD%D0%B5%20%D0%B0%D0%BD%D0%BE%D0%BD%D0%B8%D0%BC%D0%BD%D1%8B%D0%B9%20%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81%0A%F0%9F%91%89%20http://t.me/Ietsqbot?start={anonymous_id}")
     markup.add(share_button)
-    new_text = await get_share_link_message_text(user_id, anonymous_id)
 
     try:
         await bot.edit_message_text(chat_id=user_id, message_id=callback_query.message.message_id, text=new_text,
